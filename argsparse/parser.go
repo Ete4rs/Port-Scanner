@@ -9,14 +9,16 @@ import (
 )
 
 type Scan struct {
-	Network *net.IPNet
-	Port    Port
+	Network  []net.IPNet
+	SingleIP []net.IP
+	Port     Port
 }
 
 type Port struct {
-	Single  []int
-	Range   [][]int
-	Exclude []int
+	Single       []int
+	Range        [][]int
+	Exclude      []int
+	ExcludeRange [][]int
 }
 
 func NewArgumentParser() *Scan {
@@ -28,8 +30,9 @@ func NewArgumentParser() *Scan {
 	ackScan := flag.Bool("ack", false, "ACK Scan technique")
 	windowScan := flag.Bool("window", false, "Window Scan technique")
 	udpScan := flag.Bool("udp", false, "UDP Scan technique")
-	target := flag.String("target", "", "target(for example : 1.1.1.1/24")
-	port := flag.String("port", "80", "target port")
+	target := flag.String("target", "", "target(for example : 1.1.1.1/24,1.1.1.1")
+	port := flag.String("port", "", "target port")
+	exclude := flag.String("exclude", "", "exclude port")
 	help := flag.Bool("help", false, "Show help")
 	flag.Parse()
 	if *help {
@@ -39,39 +42,57 @@ func NewArgumentParser() *Scan {
 	if false {
 		fmt.Println(target, synScan, tcpConnectScan, finScan, xmasScan, nullScan, ackScan, windowScan, udpScan)
 	}
-	//ip, net, err := net.ParseCIDR(*target)
-	//if err != nil {
-	//	fmt.Printf("wrong input in ip/mask : %s\nplease use -help", *target)
+	scan := Scan{}
+	*port = strings.TrimSpace(*port)
+	if *port == "" {
+		fmt.Println("no port, i am scanning all ports")
+		arr := []int{0, 65535}
+		scan.Port.Range = append(scan.Port.Range, arr)
+	} else {
+		fmt.Println(*port)
+		parsePort(*port, &scan, true)
+	}
+	if *exclude != "" {
+		parsePort(*exclude, &scan, false)
+	}
+	//if *target == "" {
+	//	fmt.Println("no target for scanning")
 	//	return nil
 	//}
-	scan := Scan{}
-	parsePort(*port, &scan)
 	fmt.Println(scan)
 	return nil
 }
 
-func parsePort(port string, scan *Scan) {
+func parsePort(port string, scan *Scan, f bool) {
 	if strings.Contains(port, ",") {
 		p := strings.Split(port, ",")
 		for i := 0; i < len(p); i++ {
 			if strings.Contains(p[i], "-") {
-				parseRangePort(p[i], scan)
+				parseRangePort(p[i], scan, f)
 			} else {
 				var v int
 				convertStringToInt(p[i], &v)
-				scan.Port.Single = append(scan.Port.Single, v)
+				if f {
+					scan.Port.Single = append(scan.Port.Single, v)
+				} else {
+					scan.Port.Exclude = append(scan.Port.Exclude, v)
+				}
 			}
 		}
 	} else if strings.Contains(port, "-") {
-		parseRangePort(port, scan)
+		parseRangePort(port, scan, f)
 	} else {
 		var p int
 		convertStringToInt(port, &p)
-		scan.Port.Single = append(scan.Port.Single, p)
+		if f {
+			scan.Port.Single = append(scan.Port.Single, p)
+		} else {
+			scan.Port.Exclude = append(scan.Port.Exclude, p)
+		}
 	}
 }
 
-func parseRangePort(p string, scan *Scan) {
+func parseRangePort(p string, scan *Scan, f bool) {
 	ranges := strings.Split(p, "-")
 	if len(ranges) != 2 {
 		fmt.Println("bad input for port")
@@ -84,13 +105,17 @@ func parseRangePort(p string, scan *Scan) {
 	convertStringToInt(ranges[0], &portFirst)
 	convertStringToInt(ranges[1], &portLast)
 	r := []int{portFirst, portLast}
-	scan.Port.Range = append(scan.Port.Range, r)
+	if f {
+		scan.Port.Range = append(scan.Port.Range, r)
+	} else {
+		scan.Port.ExcludeRange = append(scan.Port.ExcludeRange, r)
+	}
 }
 
 func convertStringToInt(value string, v *int) {
-	va, err := strconv.Atoi(value)
+	va, err := strconv.Atoi(strings.TrimSpace(value))
 	if err != nil {
-		fmt.Println("bad input for port")
+		fmt.Println("bad input for port : " + err.Error())
 		return
 	}
 	*v = va
