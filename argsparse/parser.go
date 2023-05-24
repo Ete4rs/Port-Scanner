@@ -9,7 +9,7 @@ import (
 )
 
 type Scan struct {
-	Network  []net.IPNet
+	Network  []*net.IPNet
 	SingleIP []net.IP
 	Port     Port
 }
@@ -55,39 +55,44 @@ func NewArgumentParser() *Scan {
 	if *exclude != "" {
 		parsePort(*exclude, &scan, false)
 	}
-	//if *target == "" {
-	//	fmt.Println("no target for scanning")
-	//	return nil
-	//}
-	fmt.Println(scan)
-	return nil
+	if *target == "" {
+		fmt.Println("no target for scanning")
+		return nil
+	} else {
+		parseTargetIP(*target, &scan)
+	}
+	return &scan
+}
+
+func parseTargetIP(target string, scan *Scan) {
+	targets := strings.Split(target, ",")
+	for i := 0; i < len(targets); i++ {
+		if strings.Contains(targets[i], "/") {
+			_, ipNet, err := net.ParseCIDR(targets[i])
+			if err != nil {
+				fmt.Println("bad input for ip/cidr")
+				return
+			}
+			scan.Network = append(scan.Network, ipNet)
+		} else {
+			scan.SingleIP = append(scan.SingleIP, net.ParseIP(targets[i]))
+		}
+	}
 }
 
 func parsePort(port string, scan *Scan, f bool) {
-	if strings.Contains(port, ",") {
-		p := strings.Split(port, ",")
-		for i := 0; i < len(p); i++ {
-			if strings.Contains(p[i], "-") {
-				parseRangePort(p[i], scan, f)
-			} else {
-				var v int
-				convertStringToInt(p[i], &v)
-				if f {
-					scan.Port.Single = append(scan.Port.Single, v)
-				} else {
-					scan.Port.Exclude = append(scan.Port.Exclude, v)
-				}
-			}
-		}
-	} else if strings.Contains(port, "-") {
-		parseRangePort(port, scan, f)
-	} else {
-		var p int
-		convertStringToInt(port, &p)
-		if f {
-			scan.Port.Single = append(scan.Port.Single, p)
+	p := strings.Split(port, ",")
+	for i := 0; i < len(p); i++ {
+		if strings.Contains(p[i], "-") {
+			parseRangePort(p[i], scan, f)
 		} else {
-			scan.Port.Exclude = append(scan.Port.Exclude, p)
+			var v int
+			convertStringToInt(p[i], &v)
+			if f {
+				scan.Port.Single = append(scan.Port.Single, v)
+			} else {
+				scan.Port.Exclude = append(scan.Port.Exclude, v)
+			}
 		}
 	}
 }

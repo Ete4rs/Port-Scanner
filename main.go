@@ -1,7 +1,11 @@
 package main
 
-import "Port-Scanner/argsparse"
+import (
+	"Port-Scanner/argsparse"
+	"fmt"
+)
 
 func main() {
-	argsparse.NewArgumentParser()
+	scan := argsparse.NewArgumentParser()
+	fmt.Println(scan)
 }
