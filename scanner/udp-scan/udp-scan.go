@@ -1,4 +1,4 @@
-package syn_scan
+package udp_scan
 
 import (
 	"Port-Scanner/argsparse"
@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-func HandleSynScanMethod(s *argsparse.Scan) {
+func HandleUdpScanMethod(s *argsparse.Scan) {
 	deviceIP := device.GetDeviceIP()
 	if s.MultiThread {
 		handle, err := pcap.OpenLive(device.GetDefaultInterface().Name, 65536, true, pcap.BlockForever)
@@ -25,17 +25,25 @@ func HandleSynScanMethod(s *argsparse.Scan) {
 		for _, ip := range s.SingleIP {
 			for _, val := range s.Port.Single {
 				if checkExcludePort(val, s) {
+					err = handle.SetBPFFilter(fmt.Sprintf("udp and dst host %s and dst port %d", ip.String(), s.SrcPort))
+					if err != nil {
+						panic(err)
+					}
 					wg.Add(2)
 					go sendPacket(ip.String(), val, createSynPacket(s.SrcPort, val, &ip, deviceIP), handle, &wg)
-					go checkResponse(handle, time.Duration(s.Timeout), ip.String(), val, &wg)
+					go checkResponse(handle, time.Duration(s.Timeout), ip.String(), val, &wg, s.SrcPort)
 				}
 			}
 			for _, r := range s.Port.Range {
 				for i := r[0]; i <= r[1]; i++ {
 					if checkExcludePort(i, s) {
+						err = handle.SetBPFFilter(fmt.Sprintf("udp and dst host %s and dst port %d", ip.String(), s.SrcPort))
+						if err != nil {
+							panic(err)
+						}
 						wg.Add(2)
 						go sendPacket(ip.String(), i, createSynPacket(s.SrcPort, i, &ip, deviceIP), handle, &wg)
-						go checkResponse(handle, time.Duration(s.Timeout), ip.String(), i, &wg)
+						go checkResponse(handle, time.Duration(s.Timeout), ip.String(), i, &wg, s.SrcPort)
 					}
 				}
 			}
@@ -44,17 +52,25 @@ func HandleSynScanMethod(s *argsparse.Scan) {
 			for ip := ipNet.IP.Mask(ipNet.Mask); ipNet.Contains(ip); incrementIP(ip) {
 				for _, val := range s.Port.Single {
 					if checkExcludePort(val, s) {
+						err = handle.SetBPFFilter(fmt.Sprintf("udp and dst host %s and dst port %d", ip.String(), s.SrcPort))
+						if err != nil {
+							panic(err)
+						}
 						wg.Add(2)
 						go sendPacket(ip.String(), val, createSynPacket(s.SrcPort, val, &ip, deviceIP), handle, &wg)
-						go checkResponse(handle, time.Duration(s.Timeout), ip.String(), val, &wg)
+						go checkResponse(handle, time.Duration(s.Timeout), ip.String(), val, &wg, s.SrcPort)
 					}
 				}
 				for _, r := range s.Port.Range {
 					for i := r[0]; i <= r[1]; i++ {
 						if checkExcludePort(i, s) {
+							err = handle.SetBPFFilter(fmt.Sprintf("udp and dst host %s and dst port %d", ip.String(), s.SrcPort))
+							if err != nil {
+								panic(err)
+							}
 							wg.Add(2)
 							go sendPacket(ip.String(), i, createSynPacket(s.SrcPort, i, &ip, deviceIP), handle, &wg)
-							go checkResponse(handle, time.Duration(s.Timeout), ip.String(), i, &wg)
+							go checkResponse(handle, time.Duration(s.Timeout), ip.String(), i, &wg, s.SrcPort)
 						}
 					}
 				}
@@ -69,15 +85,23 @@ func HandleSynScanMethod(s *argsparse.Scan) {
 		for _, ip := range s.SingleIP {
 			for _, val := range s.Port.Single {
 				if checkExcludePort(val, s) {
+					err = handle.SetBPFFilter(fmt.Sprintf("udp and dst host %s and dst port %d", ip.String(), s.SrcPort))
+					if err != nil {
+						panic(err)
+					}
 					sendPacket(ip.String(), val, createSynPacket(s.SrcPort, val, &ip, deviceIP), handle, nil)
-					checkResponse(handle, time.Duration(s.Timeout), ip.String(), val, nil)
+					checkResponse(handle, time.Duration(s.Timeout), ip.String(), val, nil, s.SrcPort)
 				}
 			}
 			for _, r := range s.Port.Range {
 				for i := r[0]; i <= r[1]; i++ {
 					if checkExcludePort(i, s) {
+						err = handle.SetBPFFilter(fmt.Sprintf("udp and dst host %s and dst port %d", ip.String(), s.SrcPort))
+						if err != nil {
+							panic(err)
+						}
 						sendPacket(ip.String(), i, createSynPacket(s.SrcPort, i, &ip, deviceIP), handle, nil)
-						checkResponse(handle, time.Duration(s.Timeout), ip.String(), i, nil)
+						checkResponse(handle, time.Duration(s.Timeout), ip.String(), i, nil, s.SrcPort)
 					}
 				}
 			}
@@ -86,15 +110,23 @@ func HandleSynScanMethod(s *argsparse.Scan) {
 			for ip := ipNet.IP.Mask(ipNet.Mask); ipNet.Contains(ip); incrementIP(ip) {
 				for _, val := range s.Port.Single {
 					if checkExcludePort(val, s) {
+						err = handle.SetBPFFilter(fmt.Sprintf("udp and dst host %s and dst port %d", ip.String(), s.SrcPort))
+						if err != nil {
+							panic(err)
+						}
 						sendPacket(ip.String(), val, createSynPacket(s.SrcPort, val, &ip, deviceIP), handle, nil)
-						checkResponse(handle, time.Duration(s.Timeout), ip.String(), val, nil)
+						checkResponse(handle, time.Duration(s.Timeout), ip.String(), val, nil, s.SrcPort)
 					}
 				}
 				for _, r := range s.Port.Range {
 					for i := r[0]; i <= r[1]; i++ {
 						if checkExcludePort(i, s) {
+							err = handle.SetBPFFilter(fmt.Sprintf("udp and dst host %s and dst port %d", ip.String(), s.SrcPort))
+							if err != nil {
+								panic(err)
+							}
 							sendPacket(ip.String(), i, createSynPacket(s.SrcPort, i, &ip, deviceIP), handle, nil)
-							checkResponse(handle, time.Duration(s.Timeout), ip.String(), i, nil)
+							checkResponse(handle, time.Duration(s.Timeout), ip.String(), i, nil, s.SrcPort)
 						}
 					}
 				}
@@ -105,26 +137,11 @@ func HandleSynScanMethod(s *argsparse.Scan) {
 
 func createSynPacket(srcPort, dstPort int, dstIP, srcIP *net.IP) []byte {
 	buf := gopacket.NewSerializeBuffer()
-	tcp := layers.TCP{
-		SrcPort:    layers.TCPPort(srcPort),
-		DstPort:    layers.TCPPort(dstPort),
-		Seq:        123,
-		Ack:        12,
-		DataOffset: 5,
-		FIN:        false,
-		SYN:        true,
-		RST:        false,
-		PSH:        false,
-		ACK:        false,
-		URG:        false,
-		ECE:        false,
-		CWR:        false,
-		NS:         false,
-		Window:     5000,
-		Checksum:   0,
-		Urgent:     0,
-		Options:    nil,
-		Padding:    nil,
+	udp := layers.UDP{
+		SrcPort:  layers.UDPPort(srcPort),
+		DstPort:  layers.UDPPort(dstPort),
+		Length:   0, // Set to 0 for calculation by the operating system
+		Checksum: 0, // Set to 0 for calculation by the operating system
 	}
 
 	ip := layers.IPv4{
@@ -143,7 +160,7 @@ func createSynPacket(srcPort, dstPort int, dstIP, srcIP *net.IP) []byte {
 		Options:    nil,
 		Padding:    nil,
 	}
-	err := tcp.SerializeTo(buf, gopacket.SerializeOptions{})
+	err := udp.SerializeTo(buf, gopacket.SerializeOptions{})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -189,7 +206,7 @@ func sendPacket(ip string, port int, buff []byte, handle *pcap.Handle, wg *sync.
 	}
 }
 
-func checkResponse(handle *pcap.Handle, timeout time.Duration, targetIP string, port int, wg *sync.WaitGroup) {
+func checkResponse(handle *pcap.Handle, timeout time.Duration, targetIP string, port int, wg *sync.WaitGroup, srcPort int) {
 	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
 	now := time.Now().Add(timeout * time.Second)
 	for packet := range packetSource.Packets() {
@@ -202,8 +219,13 @@ func checkResponse(handle *pcap.Handle, timeout time.Duration, targetIP string, 
 		}
 		if packet.NetworkLayer().NetworkFlow().Dst().String() == targetIP &&
 			packet.TransportLayer().TransportFlow().Dst().String() == strconv.Itoa(port) {
-			fmt.Printf("%s : %d -> Open\n", targetIP, port)
-			break
+			udpLayer := packet.Layer(layers.LayerTypeUDP)
+			if udpLayer != nil {
+				udp, _ := udpLayer.(*layers.UDP)
+				if udp.DstPort == layers.UDPPort(srcPort) {
+					fmt.Printf("%s : %d -> Open\n", targetIP, srcPort)
+				}
+			}
 		}
 	}
 	if wg != nil {

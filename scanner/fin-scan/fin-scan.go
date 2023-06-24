@@ -1,4 +1,4 @@
-package syn_scan
+package fin_scan
 
 import (
 	"Port-Scanner/argsparse"
@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-func HandleSynScanMethod(s *argsparse.Scan) {
+func HandleFinScanMethod(s *argsparse.Scan) {
 	deviceIP := device.GetDeviceIP()
 	if s.MultiThread {
 		handle, err := pcap.OpenLive(device.GetDefaultInterface().Name, 65536, true, pcap.BlockForever)
@@ -111,8 +111,8 @@ func createSynPacket(srcPort, dstPort int, dstIP, srcIP *net.IP) []byte {
 		Seq:        123,
 		Ack:        12,
 		DataOffset: 5,
-		FIN:        false,
-		SYN:        true,
+		FIN:        true,
+		SYN:        false,
 		RST:        false,
 		PSH:        false,
 		ACK:        false,

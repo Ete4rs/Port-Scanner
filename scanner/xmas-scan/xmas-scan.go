@@ -1,4 +1,4 @@
-package syn_scan
+package xmas_scan
 
 import (
 	"Port-Scanner/argsparse"
@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-func HandleSynScanMethod(s *argsparse.Scan) {
+func HandleXmasScanMethod(s *argsparse.Scan) {
 	deviceIP := device.GetDeviceIP()
 	if s.MultiThread {
 		handle, err := pcap.OpenLive(device.GetDefaultInterface().Name, 65536, true, pcap.BlockForever)
@@ -111,12 +111,12 @@ func createSynPacket(srcPort, dstPort int, dstIP, srcIP *net.IP) []byte {
 		Seq:        123,
 		Ack:        12,
 		DataOffset: 5,
-		FIN:        false,
-		SYN:        true,
-		RST:        false,
-		PSH:        false,
+		FIN:        true, // Set FIN flag to true for Xmas scan
+		SYN:        false,
+		RST:        true, // Set RST flag to true for Xmas scan
+		PSH:        true, // Set PSH flag to true for Xmas scan
 		ACK:        false,
-		URG:        false,
+		URG:        true, // Set URG flag to true for Xmas scan
 		ECE:        false,
 		CWR:        false,
 		NS:         false,
@@ -202,9 +202,26 @@ func checkResponse(handle *pcap.Handle, timeout time.Duration, targetIP string, 
 		}
 		if packet.NetworkLayer().NetworkFlow().Dst().String() == targetIP &&
 			packet.TransportLayer().TransportFlow().Dst().String() == strconv.Itoa(port) {
-			fmt.Printf("%s : %d -> Open\n", targetIP, port)
-			break
+			if packet.NetworkLayer().LayerType() == layers.LayerTypeICMPv4 &&
+				packet.TransportLayer().LayerType() == layers.LayerTypeIPv4 {
+				// ICMP unreachable response
+				fmt.Printf("%s : %d -> Closed (ICMP Unreachable)\n", targetIP, port)
+				break
+			} else if packet.TransportLayer().LayerType() == layers.LayerTypeTCP &&
+				packet.TransportLayer().(*layers.TCP).RST {
+				// TCP RST packet response
+				fmt.Printf("%s : %d -> Closed (TCP RST)\n", targetIP, port)
+				break
+			} else if packet.ErrorLayer() != nil {
+				// Error occurred while parsing the packet
+				fmt.Printf("%s : %d -> Error: %v\n", targetIP, port, packet.ErrorLayer().Error())
+				break
+			} else {
+				// No response
+				fmt.Printf("%s : %d -> No Response (Open/Filtered)\n", targetIP, port)
+			}
 		}
+		break
 	}
 	if wg != nil {
 		wg.Done()

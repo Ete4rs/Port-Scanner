@@ -1,4 +1,4 @@
-package syn_scan
+package window_scan
 
 import (
 	"Port-Scanner/argsparse"
@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-func HandleSynScanMethod(s *argsparse.Scan) {
+func HandleWindowScanMethod(s *argsparse.Scan) {
 	deviceIP := device.GetDeviceIP()
 	if s.MultiThread {
 		handle, err := pcap.OpenLive(device.GetDefaultInterface().Name, 65536, true, pcap.BlockForever)
@@ -112,15 +112,15 @@ func createSynPacket(srcPort, dstPort int, dstIP, srcIP *net.IP) []byte {
 		Ack:        12,
 		DataOffset: 5,
 		FIN:        false,
-		SYN:        true,
+		SYN:        false,
 		RST:        false,
 		PSH:        false,
-		ACK:        false,
+		ACK:        true,
 		URG:        false,
 		ECE:        false,
 		CWR:        false,
 		NS:         false,
-		Window:     5000,
+		Window:     0, // window size = 0
 		Checksum:   0,
 		Urgent:     0,
 		Options:    nil,
@@ -202,8 +202,14 @@ func checkResponse(handle *pcap.Handle, timeout time.Duration, targetIP string, 
 		}
 		if packet.NetworkLayer().NetworkFlow().Dst().String() == targetIP &&
 			packet.TransportLayer().TransportFlow().Dst().String() == strconv.Itoa(port) {
-			fmt.Printf("%s : %d -> Open\n", targetIP, port)
-			break
+			if packet.TransportLayer().LayerType() == layers.LayerTypeTCP {
+				tcpLayer := packet.TransportLayer().(*layers.TCP)
+				if tcpLayer.RST {
+					fmt.Printf("%s : %d -> Close\n", targetIP, port)
+				} else if tcpLayer.SYN && tcpLayer.ACK {
+					fmt.Printf("%s : %d -> Open\n", targetIP, port)
+				}
+			}
 		}
 	}
 	if wg != nil {

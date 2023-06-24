@@ -1,4 +1,4 @@
-package syn_scan
+package ack_scan
 
 import (
 	"Port-Scanner/argsparse"
@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-func HandleSynScanMethod(s *argsparse.Scan) {
+func HandleAckScanMethod(s *argsparse.Scan) {
 	deviceIP := device.GetDeviceIP()
 	if s.MultiThread {
 		handle, err := pcap.OpenLive(device.GetDefaultInterface().Name, 65536, true, pcap.BlockForever)
@@ -112,10 +112,10 @@ func createSynPacket(srcPort, dstPort int, dstIP, srcIP *net.IP) []byte {
 		Ack:        12,
 		DataOffset: 5,
 		FIN:        false,
-		SYN:        true,
+		SYN:        false,
 		RST:        false,
 		PSH:        false,
-		ACK:        false,
+		ACK:        true,
 		URG:        false,
 		ECE:        false,
 		CWR:        false,
@@ -202,8 +202,22 @@ func checkResponse(handle *pcap.Handle, timeout time.Duration, targetIP string, 
 		}
 		if packet.NetworkLayer().NetworkFlow().Dst().String() == targetIP &&
 			packet.TransportLayer().TransportFlow().Dst().String() == strconv.Itoa(port) {
-			fmt.Printf("%s : %d -> Open\n", targetIP, port)
-			break
+			if tcpLayer := packet.Layer(layers.LayerTypeTCP); tcpLayer != nil {
+				tcp, _ := tcpLayer.(*layers.TCP)
+				if tcp.ACK {
+					// ACK received, the port is considered "open"
+					fmt.Printf("%s : %d -> Open\n", targetIP, port)
+				} else if tcp.RST {
+					// RST received, the port is considered "closed"
+					fmt.Printf("%s : %d -> Close\n", targetIP, port)
+				} else {
+					// No response or unexpected response, the port is considered "filtered" or protected by a firewall
+					fmt.Printf("%s : %d -> Filtered\n", targetIP, port)
+				}
+				break
+			} else {
+				fmt.Printf("%s : %d -> Close\n", targetIP, port)
+			}
 		}
 	}
 	if wg != nil {

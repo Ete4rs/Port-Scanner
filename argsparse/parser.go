@@ -16,7 +16,6 @@ type Scan struct {
 	Retry       int
 	MultiThread bool
 	Timeout     int
-	Number      int
 	Output      int
 	SrcPort     int
 }
@@ -31,7 +30,7 @@ type Port struct {
 func NewArgumentParser() (*Scan, int) {
 	synScan := flag.Bool("syn", false, "SYN Scan technique")
 	tcpConnectScan := flag.Bool("tcp", true, "Full tcp connection")
-	finScan := flag.Bool("fin", false, "FIN Scan technique")
+	finScan := flag.Bool("fin-scan", false, "FIN Scan technique")
 	xmasScan := flag.Bool("xmas", false, "Xmas Scan technique")
 	nullScan := flag.Bool("null", false, "Null Scan technique")
 	ackScan := flag.Bool("ack", false, "ACK Scan technique")
@@ -51,14 +50,10 @@ func NewArgumentParser() (*Scan, int) {
 		flag.PrintDefaults()
 		os.Exit(0)
 	}
-	if false {
-		fmt.Println(target, synScan, tcpConnectScan, finScan, xmasScan, nullScan, ackScan, windowScan, udpScan)
-	}
 	scan := Scan{
 		Retry:       *retry,
 		MultiThread: *multiThread,
 		Timeout:     *timeout,
-		Number:      0,
 		Output:      *output,
 		SrcPort:     *srcPort,
 	}
@@ -101,6 +96,9 @@ func NewArgumentParser() (*Scan, int) {
 		break
 	case *udpScan:
 		t = 6
+		break
+	case *tcpConnectScan:
+		t = 7
 		break
 	default:
 		t = 7

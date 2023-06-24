@@ -1,4 +1,4 @@
-package syn_scan
+package null_scan
 
 import (
 	"Port-Scanner/argsparse"
@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-func HandleSynScanMethod(s *argsparse.Scan) {
+func HandleNullScanMethod(s *argsparse.Scan) {
 	deviceIP := device.GetDeviceIP()
 	if s.MultiThread {
 		handle, err := pcap.OpenLive(device.GetDefaultInterface().Name, 65536, true, pcap.BlockForever)
@@ -112,7 +112,7 @@ func createSynPacket(srcPort, dstPort int, dstIP, srcIP *net.IP) []byte {
 		Ack:        12,
 		DataOffset: 5,
 		FIN:        false,
-		SYN:        true,
+		SYN:        false,
 		RST:        false,
 		PSH:        false,
 		ACK:        false,
@@ -202,8 +202,25 @@ func checkResponse(handle *pcap.Handle, timeout time.Duration, targetIP string, 
 		}
 		if packet.NetworkLayer().NetworkFlow().Dst().String() == targetIP &&
 			packet.TransportLayer().TransportFlow().Dst().String() == strconv.Itoa(port) {
-			fmt.Printf("%s : %d -> Open\n", targetIP, port)
-			break
+			if packet.NetworkLayer().LayerType() == layers.LayerTypeICMPv4 &&
+				packet.TransportLayer().LayerType() == layers.LayerTypeIPv4 {
+				// ICMP unreachable response
+				fmt.Printf("%s : %d -> Closed (ICMP Unreachable)\n", targetIP, port)
+				break
+			} else if packet.TransportLayer().LayerType() == layers.LayerTypeTCP &&
+				packet.TransportLayer().(*layers.TCP).RST {
+				// TCP RST packet response
+				fmt.Printf("%s : %d -> Closed (TCP RST)\n", targetIP, port)
+				break
+			} else if packet.ErrorLayer() != nil {
+				// Error occurred while parsing the packet
+				fmt.Printf("%s : %d -> Error: %v\n", targetIP, port, packet.ErrorLayer().Error())
+				break
+			} else {
+				// No response or potentially open/filtered
+				fmt.Printf("%s : %d -> No Response or Potentially Open/Filtered\n", targetIP, port)
+				break
+			}
 		}
 	}
 	if wg != nil {

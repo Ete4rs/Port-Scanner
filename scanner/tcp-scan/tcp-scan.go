@@ -1,4 +1,4 @@
-package syn_scan
+package tcp_scan
 
 import (
 	"Port-Scanner/argsparse"
@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-func HandleSynScanMethod(s *argsparse.Scan) {
+func HandleFullTcpScanMethod(s *argsparse.Scan) {
 	deviceIP := device.GetDeviceIP()
 	if s.MultiThread {
 		handle, err := pcap.OpenLive(device.GetDefaultInterface().Name, 65536, true, pcap.BlockForever)
@@ -25,6 +25,10 @@ func HandleSynScanMethod(s *argsparse.Scan) {
 		for _, ip := range s.SingleIP {
 			for _, val := range s.Port.Single {
 				if checkExcludePort(val, s) {
+					err = handle.SetBPFFilter(fmt.Sprintf("tcp and dst host %s", ip.String()))
+					if err != nil {
+						panic(err)
+					}
 					wg.Add(2)
 					go sendPacket(ip.String(), val, createSynPacket(s.SrcPort, val, &ip, deviceIP), handle, &wg)
 					go checkResponse(handle, time.Duration(s.Timeout), ip.String(), val, &wg)
@@ -33,6 +37,10 @@ func HandleSynScanMethod(s *argsparse.Scan) {
 			for _, r := range s.Port.Range {
 				for i := r[0]; i <= r[1]; i++ {
 					if checkExcludePort(i, s) {
+						err = handle.SetBPFFilter(fmt.Sprintf("tcp and dst host %s", ip.String()))
+						if err != nil {
+							panic(err)
+						}
 						wg.Add(2)
 						go sendPacket(ip.String(), i, createSynPacket(s.SrcPort, i, &ip, deviceIP), handle, &wg)
 						go checkResponse(handle, time.Duration(s.Timeout), ip.String(), i, &wg)
@@ -44,6 +52,10 @@ func HandleSynScanMethod(s *argsparse.Scan) {
 			for ip := ipNet.IP.Mask(ipNet.Mask); ipNet.Contains(ip); incrementIP(ip) {
 				for _, val := range s.Port.Single {
 					if checkExcludePort(val, s) {
+						err = handle.SetBPFFilter(fmt.Sprintf("tcp and dst host %s", ip.String()))
+						if err != nil {
+							panic(err)
+						}
 						wg.Add(2)
 						go sendPacket(ip.String(), val, createSynPacket(s.SrcPort, val, &ip, deviceIP), handle, &wg)
 						go checkResponse(handle, time.Duration(s.Timeout), ip.String(), val, &wg)
@@ -52,6 +64,10 @@ func HandleSynScanMethod(s *argsparse.Scan) {
 				for _, r := range s.Port.Range {
 					for i := r[0]; i <= r[1]; i++ {
 						if checkExcludePort(i, s) {
+							err = handle.SetBPFFilter(fmt.Sprintf("tcp and dst host %s", ip.String()))
+							if err != nil {
+								panic(err)
+							}
 							wg.Add(2)
 							go sendPacket(ip.String(), i, createSynPacket(s.SrcPort, i, &ip, deviceIP), handle, &wg)
 							go checkResponse(handle, time.Duration(s.Timeout), ip.String(), i, &wg)
@@ -69,6 +85,10 @@ func HandleSynScanMethod(s *argsparse.Scan) {
 		for _, ip := range s.SingleIP {
 			for _, val := range s.Port.Single {
 				if checkExcludePort(val, s) {
+					err = handle.SetBPFFilter(fmt.Sprintf("tcp and dst host %s", ip.String()))
+					if err != nil {
+						panic(err)
+					}
 					sendPacket(ip.String(), val, createSynPacket(s.SrcPort, val, &ip, deviceIP), handle, nil)
 					checkResponse(handle, time.Duration(s.Timeout), ip.String(), val, nil)
 				}
@@ -76,6 +96,10 @@ func HandleSynScanMethod(s *argsparse.Scan) {
 			for _, r := range s.Port.Range {
 				for i := r[0]; i <= r[1]; i++ {
 					if checkExcludePort(i, s) {
+						err = handle.SetBPFFilter(fmt.Sprintf("tcp and dst host %s", ip.String()))
+						if err != nil {
+							panic(err)
+						}
 						sendPacket(ip.String(), i, createSynPacket(s.SrcPort, i, &ip, deviceIP), handle, nil)
 						checkResponse(handle, time.Duration(s.Timeout), ip.String(), i, nil)
 					}
@@ -86,6 +110,10 @@ func HandleSynScanMethod(s *argsparse.Scan) {
 			for ip := ipNet.IP.Mask(ipNet.Mask); ipNet.Contains(ip); incrementIP(ip) {
 				for _, val := range s.Port.Single {
 					if checkExcludePort(val, s) {
+						err = handle.SetBPFFilter(fmt.Sprintf("tcp and dst host %s", ip.String()))
+						if err != nil {
+							panic(err)
+						}
 						sendPacket(ip.String(), val, createSynPacket(s.SrcPort, val, &ip, deviceIP), handle, nil)
 						checkResponse(handle, time.Duration(s.Timeout), ip.String(), val, nil)
 					}
@@ -93,6 +121,10 @@ func HandleSynScanMethod(s *argsparse.Scan) {
 				for _, r := range s.Port.Range {
 					for i := r[0]; i <= r[1]; i++ {
 						if checkExcludePort(i, s) {
+							err = handle.SetBPFFilter(fmt.Sprintf("tcp and dst host %s", ip.String()))
+							if err != nil {
+								panic(err)
+							}
 							sendPacket(ip.String(), i, createSynPacket(s.SrcPort, i, &ip, deviceIP), handle, nil)
 							checkResponse(handle, time.Duration(s.Timeout), ip.String(), i, nil)
 						}
@@ -120,7 +152,7 @@ func createSynPacket(srcPort, dstPort int, dstIP, srcIP *net.IP) []byte {
 		ECE:        false,
 		CWR:        false,
 		NS:         false,
-		Window:     5000,
+		Window:     5000, // window size = 0
 		Checksum:   0,
 		Urgent:     0,
 		Options:    nil,
@@ -202,8 +234,12 @@ func checkResponse(handle *pcap.Handle, timeout time.Duration, targetIP string, 
 		}
 		if packet.NetworkLayer().NetworkFlow().Dst().String() == targetIP &&
 			packet.TransportLayer().TransportFlow().Dst().String() == strconv.Itoa(port) {
-			fmt.Printf("%s : %d -> Open\n", targetIP, port)
-			break
+			if packet.TransportLayer().LayerType() == layers.LayerTypeTCP {
+				tcpLayer := packet.TransportLayer().(*layers.TCP)
+				if tcpLayer.SYN && tcpLayer.ACK {
+					fmt.Printf("Port %d is open\n", port)
+				}
+			}
 		}
 	}
 	if wg != nil {
