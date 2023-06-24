@@ -1,7 +1,6 @@
 package argsparse
 
 import (
-	"Port-Scanner/scanner"
 	"flag"
 	"fmt"
 	"net"
@@ -10,7 +9,26 @@ import (
 	"strings"
 )
 
-func NewArgumentParser() (*scanner.Scan, int) {
+type Scan struct {
+	Network     []*net.IPNet
+	SingleIP    []net.IP
+	Port        Port
+	Retry       int
+	MultiThread bool
+	Timeout     int
+	Number      int
+	Output      int
+	SrcPort     int
+}
+
+type Port struct {
+	Single       []int
+	Range        [][]int
+	Exclude      []int
+	ExcludeRange [][]int
+}
+
+func NewArgumentParser() (*Scan, int) {
 	synScan := flag.Bool("syn", false, "SYN Scan technique")
 	tcpConnectScan := flag.Bool("tcp", true, "Full tcp connection")
 	finScan := flag.Bool("fin", false, "FIN Scan technique")
@@ -24,6 +42,9 @@ func NewArgumentParser() (*scanner.Scan, int) {
 	exclude := flag.String("e", "", "exclude port")
 	retry := flag.Int("r", 2, "retry scan the port")
 	multiThread := flag.Bool("m", false, "multi thread scanning")
+	timeout := flag.Int("time", 10, "timeout packet")
+	output := flag.Int("o", 1, "output (1->terminal,  2->txt file)")
+	srcPort := flag.Int("src", 7777, "src port")
 	help := flag.Bool("h", false, "Show help")
 	flag.Parse()
 	if *help {
@@ -33,9 +54,13 @@ func NewArgumentParser() (*scanner.Scan, int) {
 	if false {
 		fmt.Println(target, synScan, tcpConnectScan, finScan, xmasScan, nullScan, ackScan, windowScan, udpScan)
 	}
-	scan := scanner.Scan{
+	scan := Scan{
 		Retry:       *retry,
 		MultiThread: *multiThread,
+		Timeout:     *timeout,
+		Number:      0,
+		Output:      *output,
+		SrcPort:     *srcPort,
 	}
 	*port = strings.TrimSpace(*port)
 	if *port == "" {
@@ -84,7 +109,7 @@ func NewArgumentParser() (*scanner.Scan, int) {
 	return &scan, t
 }
 
-func parseTargetIP(target string, scan *scanner.Scan) {
+func parseTargetIP(target string, scan *Scan) {
 	targets := strings.Split(target, ",")
 	for i := 0; i < len(targets); i++ {
 		if strings.Contains(targets[i], "/") {
@@ -100,7 +125,7 @@ func parseTargetIP(target string, scan *scanner.Scan) {
 	}
 }
 
-func parsePort(port string, scan *scanner.Scan, f bool) {
+func parsePort(port string, scan *Scan, f bool) {
 	p := strings.Split(port, ",")
 	for i := 0; i < len(p); i++ {
 		if strings.Contains(p[i], "-") {
@@ -108,6 +133,7 @@ func parsePort(port string, scan *scanner.Scan, f bool) {
 		} else {
 			var v int
 			convertStringToInt(p[i], &v)
+			errorPortNumber(v)
 			if f {
 				scan.Port.Single = append(scan.Port.Single, v)
 			} else {
@@ -117,10 +143,10 @@ func parsePort(port string, scan *scanner.Scan, f bool) {
 	}
 }
 
-func parseRangePort(p string, scan *scanner.Scan, f bool) {
+func parseRangePort(p string, scan *Scan, f bool) {
 	ranges := strings.Split(p, "-")
 	if len(ranges) != 2 {
-		fmt.Println("bad input for port")
+		fmt.Println("bad input for port value")
 		return
 	}
 	var (
@@ -128,7 +154,9 @@ func parseRangePort(p string, scan *scanner.Scan, f bool) {
 		portLast  int
 	)
 	convertStringToInt(ranges[0], &portFirst)
+	errorPortNumber(portFirst)
 	convertStringToInt(ranges[1], &portLast)
+	errorPortNumber(portLast)
 	r := []int{portFirst, portLast}
 	if f {
 		scan.Port.Range = append(scan.Port.Range, r)
@@ -140,8 +168,15 @@ func parseRangePort(p string, scan *scanner.Scan, f bool) {
 func convertStringToInt(value string, v *int) {
 	va, err := strconv.Atoi(strings.TrimSpace(value))
 	if err != nil {
-		fmt.Println("bad input for port : " + err.Error())
+		fmt.Println("bad input for port value: " + err.Error())
 		return
 	}
 	*v = va
+}
+
+func errorPortNumber(p int) {
+	if p > 65535 || p < 0 {
+		fmt.Println("bad input for port value")
+		return
+	}
 }
